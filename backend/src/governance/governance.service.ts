@@ -39,6 +39,19 @@ export interface Proposal {
   target: string;
 }
 
+const VALID_PROPOSAL_STATUSES = new Set([
+  "Active",
+  "Passed",
+  "Rejected",
+  "Expired",
+  "Executed",
+]);
+
+const VALID_PROPOSAL_ACTIONS = new Set([
+  "Funding",
+  "General",
+]);
+
 @Injectable()
 export class GovernanceService {
   private readonly logger = new Logger(GovernanceService.name);
@@ -62,17 +75,17 @@ export class GovernanceService {
     const params: unknown[] = [contractId];
     let paramIndex = 2;
 
-    // Filter by topic_2 for proposal events
     query += " AND topic_2 = $" + paramIndex++;
     params.push("propose");
 
-    if (status) {
-      // In a real implementation, you'd filter by status from event_data
-      // For now, we'll just include it in the query structure
+    if (status && VALID_PROPOSAL_STATUSES.has(status)) {
+      query += " AND event_data->>'status' = $" + paramIndex++;
+      params.push(status);
     }
 
-    if (action) {
-      // Similar to status, filter by action type from event_data
+    if (action && VALID_PROPOSAL_ACTIONS.has(action)) {
+      query += " AND event_data->>'action' = $" + paramIndex++;
+      params.push(action);
     }
 
     query +=
@@ -138,9 +151,34 @@ export class GovernanceService {
     const cached = await this.cache.get<string[]>(cacheKey);
     if (cached) return cached;
 
-    // In a real implementation, this would query the contract
-    // For now, return mock members
-    const members = ["GABC123...", "GDEF456...", "GHIJ789..."];
+    const contractId = process.env.GOVERNANCE_CONTRACT_ID;
+    if (!contractId) {
+      throw new Error("GOVERNANCE_CONTRACT_ID not configured");
+    }
+
+    const result = await pool.query(
+      `SELECT event_data FROM events
+       WHERE contract_id = $1
+       AND topic_1 = $2
+       AND topic_2 = $3
+       ORDER BY created_at DESC
+       LIMIT 1`,
+      [contractId, "gov", "init"],
+    );
+
+    const members: string[] = [];
+    if (result.rows.length > 0) {
+      const data = result.rows[0].event_data as Record<string, unknown>;
+      const raw = data.members;
+      if (Array.isArray(raw)) {
+        for (const item of raw) {
+          if (typeof item === "string") {
+            members.push(item);
+          }
+        }
+      }
+    }
+
     await this.cache.set(cacheKey, members, 300);
     return members;
   }

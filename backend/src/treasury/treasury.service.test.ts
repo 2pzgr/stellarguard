@@ -10,13 +10,7 @@ jest.mock("../config", () => ({
   },
 }));
 
-jest.mock("../cache/cache.service", () => ({
-  CacheService: jest.fn().mockImplementation(() => ({
-    get: jest.fn(),
-    set: jest.fn(),
-    delete: jest.fn(),
-    invalidatePattern: jest.fn(),
-    flush: jest.fn(),
+
   })),
 }));
 

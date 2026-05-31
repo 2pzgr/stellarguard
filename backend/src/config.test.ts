@@ -21,6 +21,10 @@ describe("config", () => {
     delete process.env.GOVERNANCE_CONTRACT_ID;
     delete process.env.TOKEN_VAULT_CONTRACT_ID;
     delete process.env.ACCESS_CONTROL_CONTRACT_ID;
+    // Set required critical env vars for loadConfig
+    process.env.DATABASE_URL = "postgresql://localhost:5432/stellarguard";
+    process.env.SOROBAN_RPC_URL = "https://soroban-testnet.stellar.org";
+    process.env.NETWORK_PASSPHRASE = "Test SDF Network ; September 2015";
   });
 
   afterAll(() => {
