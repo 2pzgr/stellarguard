@@ -7,7 +7,15 @@ jest.mock("../db", () => ({
 jest.mock("../config", () => ({
   config: {
     sorobanRpcUrl: "https://soroban-test.example.com",
+    redisUrl: "redis://localhost:6379",
   },
+}));
+
+jest.mock("../cache/cache.service", () => ({
+  CacheService: jest.fn().mockImplementation(() => ({
+    get: jest.fn().mockResolvedValue(null),
+    set: jest.fn().mockResolvedValue(undefined),
+  })),
 }));
 
 jest.mock("@stellar/stellar-sdk", () => ({
@@ -19,6 +27,7 @@ jest.mock("@stellar/stellar-sdk", () => ({
 }));
 
 import { TreasuryService } from "./treasury.service";
+import { CacheService } from "../cache/cache.service";
 import { pool } from "../db";
 
 const mockedQuery = pool.query as jest.Mock;
@@ -47,7 +56,7 @@ describe("TreasuryService", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     process.env = { ...ORIGINAL_ENV };
-    service = new TreasuryService();
+    service = new TreasuryService(new CacheService());
   });
 
   afterAll(() => {
@@ -93,40 +102,53 @@ describe("TreasuryService", () => {
   describe("getTransactions", () => {
     it("queries with default pagination (page 1, limit 10)", async () => {
       process.env.TREASURY_CONTRACT_ID = "CTREASURY";
-      mockedQuery.mockResolvedValue({ rows: [buildEventRow()] });
+      mockedQuery
+        .mockResolvedValueOnce({ rows: [{ count: "5" }] })
+        .mockResolvedValueOnce({ rows: [buildEventRow()] });
 
       const result = await service.getTransactions();
 
-      expect(mockedQuery).toHaveBeenCalledWith(
+      expect(mockedQuery).toHaveBeenNthCalledWith(
+        1,
+        expect.stringContaining("SELECT COUNT(*) FROM events WHERE contract_id = $1"),
+        ["CTREASURY"],
+      );
+      expect(mockedQuery).toHaveBeenNthCalledWith(
+        2,
         expect.stringContaining("FROM events WHERE contract_id = $1"),
         ["CTREASURY", 10, 0],
       );
-      expect(result).toHaveLength(1);
-      expect(result[0]?.contract_id).toBe("CTREASURY");
+      expect(result.data).toHaveLength(1);
+      expect(result.data[0]?.contract_id).toBe("CTREASURY");
+      expect(result.pagination).toEqual({ page: 1, limit: 10, total: 5 });
     });
 
     it("computes the offset for non-first pages", async () => {
       process.env.TREASURY_CONTRACT_ID = "CTREASURY";
-      mockedQuery.mockResolvedValue({ rows: [] });
+      mockedQuery
+        .mockResolvedValueOnce({ rows: [{ count: "0" }] })
+        .mockResolvedValueOnce({ rows: [] });
 
       await service.getTransactions(3, 25);
 
       // Page 3, limit 25 → offset 50
-      expect(mockedQuery).toHaveBeenCalledWith(expect.any(String), [
-        "CTREASURY",
-        25,
-        50,
-      ]);
+      expect(mockedQuery).toHaveBeenNthCalledWith(
+        2,
+        expect.stringContaining("FROM events WHERE contract_id = $1"),
+        ["CTREASURY", 25, 50],
+      );
     });
 
     it("validates each row through the Zod schema", async () => {
       process.env.TREASURY_CONTRACT_ID = "CTREASURY";
       const valid = buildEventRow({ id: 5 });
-      mockedQuery.mockResolvedValue({ rows: [valid] });
+      mockedQuery
+        .mockResolvedValueOnce({ rows: [{ count: "1" }] })
+        .mockResolvedValueOnce({ rows: [valid] });
 
       const result = await service.getTransactions();
 
-      expect(result[0]).toMatchObject({
+      expect(result.data[0]).toMatchObject({
         id: 5,
         contract_id: "CTREASURY",
         topic_1: "treasury",
@@ -136,11 +158,28 @@ describe("TreasuryService", () => {
 
     it("rejects when a row fails Zod validation", async () => {
       process.env.TREASURY_CONTRACT_ID = "CTREASURY";
-      mockedQuery.mockResolvedValue({
-        rows: [{ ...buildEventRow(), id: "not-a-number" }],
-      });
+      mockedQuery
+        .mockResolvedValueOnce({ rows: [{ count: "1" }] })
+        .mockResolvedValueOnce({
+          rows: [{ ...buildEventRow(), id: "not-a-number" }],
+        });
 
       await expect(service.getTransactions()).rejects.toBeDefined();
+    });
+
+    it("clamps invalid page and limit inputs", async () => {
+      process.env.TREASURY_CONTRACT_ID = "CTREASURY";
+      mockedQuery
+        .mockResolvedValueOnce({ rows: [{ count: "0" }] })
+        .mockResolvedValueOnce({ rows: [] });
+
+      await service.getTransactions(0, 200);
+
+      expect(mockedQuery).toHaveBeenNthCalledWith(
+        2,
+        expect.any(String),
+        ["CTREASURY", 100, 0],
+      );
     });
   });
 

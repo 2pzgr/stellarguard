@@ -129,16 +129,17 @@ export function parseRawEvent(rawEvent: {
   const { topic1, topic2, allTopics } = parseTopics(rawEvent.topic);
   const rawData = parseEventData(rawEvent.value);
   const eventName = getEventName(topic1, topic2);
-  const enrichedData = {
-    ...data,
-    ...(eventName ? { _eventName: eventName } : {}),
-    _topics: allTopics,
-  };
 
   const data: Record<string, unknown> = {
     ...rawData,
     _topics: allTopics,
     ...(eventName ? { _eventName: eventName } : {}),
+  };
+
+  const enrichedData = {
+    ...data,
+    ...(eventName ? { _eventName: eventName } : {}),
+    _topics: allTopics,
   };
 
   return {

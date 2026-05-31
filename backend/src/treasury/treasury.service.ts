@@ -66,15 +66,38 @@ export class TreasuryService {
   }
 
   async getTransactions(page: number = 1, limit: number = 10) {
+    if (!Number.isInteger(page) || page < 1) {
+      page = 1;
+    }
+    if (!Number.isInteger(limit) || limit < 1) {
+      limit = 10;
+    }
+    if (limit > 100) {
+      limit = 100;
+    }
+
     const offset = (page - 1) * limit;
     const contractId = process.env.TREASURY_CONTRACT_ID;
+
+    const countResult = await pool.query(
+      "SELECT COUNT(*) FROM events WHERE contract_id = $1",
+      [contractId],
+    );
+    const total = parseInt(countResult.rows[0].count, 10);
 
     const result = await pool.query(
       "SELECT * FROM events WHERE contract_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3",
       [contractId, limit, offset],
     );
 
-    return result.rows.map((row) => TransactionSchema.parse(row));
+    return {
+      data: result.rows.map((row) => TransactionSchema.parse(row)),
+      pagination: {
+        page,
+        limit,
+        total,
+      },
+    };
   }
 
   async getTransactionById(id: string) {

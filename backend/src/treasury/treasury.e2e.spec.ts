@@ -6,8 +6,17 @@ jest.mock("../db", () => ({
 
 jest.mock("../config", () => ({
   config: {
+    databaseUrl: "postgresql://localhost:5432/test",
     sorobanRpcUrl: "https://soroban-test.example.com",
+    redisUrl: "redis://localhost:6379",
   },
+}));
+
+jest.mock("../cache/cache.service", () => ({
+  CacheService: jest.fn().mockImplementation(() => ({
+    get: jest.fn().mockResolvedValue(null),
+    set: jest.fn().mockResolvedValue(undefined),
+  })),
 }));
 
 jest.mock("@stellar/stellar-sdk", () => ({
@@ -23,6 +32,7 @@ import { INestApplication } from "@nestjs/common";
 import request from "supertest";
 import { TreasuryController } from "./treasury.controller";
 import { TreasuryService } from "./treasury.service";
+import { CacheService } from "../cache/cache.service";
 import { pool } from "../db";
 
 const mockedQuery = pool.query as jest.Mock;
@@ -51,7 +61,7 @@ describe("Treasury API (e2e)", () => {
     process.env = { ...ORIGINAL_ENV, TREASURY_CONTRACT_ID: "CTREASURY" };
     const moduleRef = await Test.createTestingModule({
       controllers: [TreasuryController],
-      providers: [TreasuryService],
+      providers: [TreasuryService, CacheService],
     }).compile();
 
     app = moduleRef.createNestApplication();
@@ -76,18 +86,28 @@ describe("Treasury API (e2e)", () => {
   });
 
   it("serves transactions from the mocked test database", async () => {
-    mockedQuery.mockResolvedValue({ rows: [eventRow()] });
+    mockedQuery
+      .mockResolvedValueOnce({ rows: [{ count: "1" }] })
+      .mockResolvedValueOnce({ rows: [eventRow()] });
 
     const response = await request(app.getHttpServer())
       .get("/api/treasury/transactions?page=1&limit=5")
       .expect(200);
 
-    expect(response.body).toEqual([expect.objectContaining({ id: 7 })]);
-    expect(mockedQuery).toHaveBeenCalledWith(expect.any(String), [
-      "CTREASURY",
-      5,
-      0,
-    ]);
+    expect(response.body).toEqual({
+      data: [expect.objectContaining({ id: 7 })],
+      pagination: { page: 1, limit: 5, total: 1 },
+    });
+    expect(mockedQuery).toHaveBeenNthCalledWith(
+      1,
+      expect.stringContaining("SELECT COUNT(*)"),
+      ["CTREASURY"],
+    );
+    expect(mockedQuery).toHaveBeenNthCalledWith(
+      2,
+      expect.any(String),
+      ["CTREASURY", 5, 0],
+    );
   });
 
   it("returns 404 for missing transaction rows", async () => {

@@ -28,6 +28,9 @@ describe("config", () => {
   });
 
   it("loads defaults for local development", () => {
+    process.env.DATABASE_URL = "postgresql://localhost:5432/stellarguard";
+    process.env.SOROBAN_RPC_URL = "https://soroban-testnet.stellar.org";
+    process.env.NETWORK_PASSPHRASE = "Test SDF Network ; September 2015";
     const warn = jest.spyOn(console, "warn").mockImplementation();
     const { loadConfig } = reloadConfig();
 
@@ -44,6 +47,9 @@ describe("config", () => {
   });
 
   it("collects configured contract ids in stable order", () => {
+    process.env.DATABASE_URL = "postgresql://localhost:5432/stellarguard";
+    process.env.SOROBAN_RPC_URL = "https://soroban-testnet.stellar.org";
+    process.env.NETWORK_PASSPHRASE = "Test SDF Network ; September 2015";
     process.env.TREASURY_CONTRACT_ID = " CTREASURY ";
     process.env.GOVERNANCE_CONTRACT_ID = "CGOV";
     process.env.TOKEN_VAULT_CONTRACT_ID = "";
@@ -55,6 +61,9 @@ describe("config", () => {
   });
 
   it("parses comma-separated CORS origins", () => {
+    process.env.DATABASE_URL = "postgresql://localhost:5432/stellarguard";
+    process.env.SOROBAN_RPC_URL = "https://soroban-testnet.stellar.org";
+    process.env.NETWORK_PASSPHRASE = "Test SDF Network ; September 2015";
     process.env.CORS_ORIGIN =
       "https://app.example.com, https://admin.example.com";
 
@@ -67,6 +76,9 @@ describe("config", () => {
   });
 
   it("warns for wildcard CORS in production", () => {
+    process.env.DATABASE_URL = "postgresql://localhost:5432/stellarguard";
+    process.env.SOROBAN_RPC_URL = "https://soroban-testnet.stellar.org";
+    process.env.NETWORK_PASSPHRASE = "Test SDF Network ; September 2015";
     process.env.NODE_ENV = "production";
     process.env.CORS_ORIGIN = "*";
     process.env.TREASURY_CONTRACT_ID = "CTREASURY";
