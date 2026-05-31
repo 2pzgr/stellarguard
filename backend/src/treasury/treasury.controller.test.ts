@@ -1,24 +1,6 @@
 jest.mock("../config", () => ({
   config: {
-    databaseUrl: "postgresql://localhost:5432/test",
-    sorobanRpcUrl: "https://soroban-test.example.com",
-    redisUrl: "redis://localhost:6379",
-  },
-}));
 
-jest.mock("../cache/cache.service", () => ({
-  CacheService: jest.fn().mockImplementation(() => ({
-    get: jest.fn().mockResolvedValue(null),
-    set: jest.fn().mockResolvedValue(undefined),
-  })),
-}));
-
-jest.mock("@stellar/stellar-sdk", () => ({
-  SorobanRpc: {
-    Server: jest.fn().mockImplementation(() => ({})),
-  },
-  Address: jest.fn(),
-  Contract: jest.fn(),
 }));
 
 import { BadRequestException, NotFoundException } from "@nestjs/common";

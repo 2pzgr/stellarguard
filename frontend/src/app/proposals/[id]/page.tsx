@@ -5,6 +5,7 @@ import Link from "next/link";
 import { toast } from "react-hot-toast";
 import { VoteButton } from "@/components/VoteButton";
 import { StatusBadge } from "@/components/StatusBadge";
+import { VotingProgressBar } from "@/components/VotingProgressBar";
 import { useFreighter } from "@/hooks/useFreighter";
 import { useGovernance } from "@/hooks/useGovernance";
 import { formatAddress } from "@/lib/formatters";
@@ -18,6 +19,7 @@ export default function ProposalDetailPage({
   const id = Number.parseInt(params.id, 10);
   const { address: currentAddress } = useFreighter();
   const {
+    config,
     getProposal,
     finalize,
     getConfig,
@@ -85,12 +87,11 @@ export default function ProposalDetailPage({
   const displayedVotesAgainst =
     (proposal?.votesAgainst ?? 0) + (pendingVote === false ? 1 : 0);
   const totalVotes = displayedVotesFor + displayedVotesAgainst;
-  const forPercent = totalVotes > 0 ? (displayedVotesFor / totalVotes) * 100 : 0;
-  const againstPercent =
-    totalVotes > 0 ? (displayedVotesAgainst / totalVotes) * 100 : 0;
   const votingClosed =
     proposal ? proposal.status !== "Active" || proposal.endsAt * 1000 <= nowMs : true;
   const effectiveHasVoted = viewerHasVoted || pendingVote !== undefined;
+  const memberCount = config?.memberCount ?? 0;
+  const quorumPercent = config?.quorumPercent ?? 0;
   const canFinalize = useMemo(() => {
     if (!proposal) return false;
     return proposal.status === "Active" && proposal.endsAt * 1000 <= nowMs;
@@ -259,26 +260,13 @@ export default function ProposalDetailPage({
         <h2 className="text-lg font-semibold text-white mb-4">
           Voting Progress
         </h2>
-        <div className="space-y-3">
-          <div>
-            <div className="flex justify-between text-sm mb-1">
-              <span className="text-green-400">For</span>
-              <span className="text-gray-400">{displayedVotesFor} votes</span>
-            </div>
-            <div className="w-full bg-stellar-border rounded-full h-2">
-              <div className="bg-green-500 h-2 rounded-full" style={{ width: `${forPercent}%` }} />
-            </div>
-          </div>
-          <div>
-            <div className="flex justify-between text-sm mb-1">
-              <span className="text-red-400">Against</span>
-              <span className="text-gray-400">{displayedVotesAgainst} votes</span>
-            </div>
-            <div className="w-full bg-stellar-border rounded-full h-2">
-              <div className="bg-red-500 h-2 rounded-full" style={{ width: `${againstPercent}%` }} />
-            </div>
-          </div>
-        </div>
+        <VotingProgressBar
+          forVotes={displayedVotesFor}
+          againstVotes={displayedVotesAgainst}
+          totalVotes={totalVotes}
+          memberCount={memberCount}
+          quorumPercent={quorumPercent}
+        />
       </div>
 
       <div className="card grid grid-cols-1 md:grid-cols-2 gap-6">

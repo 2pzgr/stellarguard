@@ -148,7 +148,7 @@ export function parseRawEvent(rawEvent: {
     topic2,
     eventName,
     eventTopics: allTopics,
-    data: enrichedData,
+    data,
     ledger: rawEvent.ledger,
     timestamp: null,
     cursor: rawEvent.pagingToken,

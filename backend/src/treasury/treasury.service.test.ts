@@ -11,10 +11,7 @@ jest.mock("../config", () => ({
   },
 }));
 
-jest.mock("../cache/cache.service", () => ({
-  CacheService: jest.fn().mockImplementation(() => ({
-    get: jest.fn().mockResolvedValue(null),
-    set: jest.fn().mockResolvedValue(undefined),
+
   })),
 }));
 
@@ -184,34 +181,132 @@ describe("TreasuryService", () => {
   });
 
   describe("getTransactionById", () => {
+    it("throws when TREASURY_CONTRACT_ID is not configured", async () => {
+      delete process.env.TREASURY_CONTRACT_ID;
+      await expect(service.getTransactionById("42")).rejects.toThrow(
+        "TREASURY_CONTRACT_ID not configured",
+      );
+    });
+
     it("returns null when no row is found", async () => {
+      process.env.TREASURY_CONTRACT_ID = "CTREASURY";
       mockedQuery.mockResolvedValue({ rows: [] });
       const result = await service.getTransactionById("999");
       expect(result).toBeNull();
     });
 
     it("returns the parsed transaction when found", async () => {
-      mockedQuery.mockResolvedValue({ rows: [buildEventRow({ id: 42 })] });
+      process.env.TREASURY_CONTRACT_ID = "CTREASURY";
+      mockedQuery.mockResolvedValue({
+        rows: [buildEventRow({ id: 42, contract_id: "CTREASURY" })],
+      });
       const result = await service.getTransactionById("42");
       expect(result?.id).toBe(42);
+      expect(result?.contract_id).toBe("CTREASURY");
     });
 
-    it("queries by id parameter", async () => {
+    it("queries by id and contract_id parameters", async () => {
+      process.env.TREASURY_CONTRACT_ID = "CTREASURY";
       mockedQuery.mockResolvedValue({ rows: [] });
       await service.getTransactionById("17");
       expect(mockedQuery).toHaveBeenCalledWith(
-        "SELECT * FROM events WHERE id = $1",
-        ["17"],
+        "SELECT * FROM events WHERE id = $1 AND contract_id = $2",
+        ["17", "CTREASURY"],
+      );
+    });
+
+    it("cannot return a transaction from a different contract (SQL scoping)", async () => {
+      process.env.TREASURY_CONTRACT_ID = "CTREASURY";
+      // Even if a row exists with the same id under a different contract,
+      // the SQL WHERE clause ensures it is not returned.
+      mockedQuery.mockResolvedValue({ rows: [] });
+      const result = await service.getTransactionById("42");
+      expect(result).toBeNull();
+      expect(mockedQuery).toHaveBeenCalledWith(
+        "SELECT * FROM events WHERE id = $1 AND contract_id = $2",
+        ["42", "CTREASURY"],
       );
     });
   });
 
   describe("getSigners", () => {
-    it("returns an array of signer strings", async () => {
+    it("throws when TREASURY_CONTRACT_ID is not configured", async () => {
+      delete process.env.TREASURY_CONTRACT_ID;
+      await expect(service.getSigners()).rejects.toThrow(
+        "TREASURY_CONTRACT_ID not configured",
+      );
+    });
+
+    it("returns empty array when no signer events exist", async () => {
+      process.env.TREASURY_CONTRACT_ID = "CTREASURY";
+      mockedQuery.mockResolvedValue({ rows: [] });
+
       const result = await service.getSigners();
-      expect(Array.isArray(result)).toBe(true);
-      expect(result.length).toBeGreaterThan(0);
-      expect(typeof result[0]).toBe("string");
+      expect(result).toEqual([]);
+    });
+
+    it("accumulates signers from add_sig events", async () => {
+      process.env.TREASURY_CONTRACT_ID = "CTREASURY";
+      mockedQuery.mockResolvedValue({
+        rows: [
+          { topic_2: "add_sig", event_data: { value: ["GABC123", 1] } },
+          { topic_2: "add_sig", event_data: { value: ["GDEF456", 2] } },
+        ],
+      });
+
+      const result = await service.getSigners();
+      expect(result).toEqual(["GABC123", "GDEF456"]);
+    });
+
+    it("removes signers from rem_sig events", async () => {
+      process.env.TREASURY_CONTRACT_ID = "CTREASURY";
+      mockedQuery.mockResolvedValue({
+        rows: [
+          { topic_2: "add_sig", event_data: { value: ["GABC123", 1] } },
+          { topic_2: "add_sig", event_data: { value: ["GDEF456", 2] } },
+          { topic_2: "rem_sig", event_data: { value: ["GABC123", 1] } },
+        ],
+      });
+
+      const result = await service.getSigners();
+      expect(result).toEqual(["GDEF456"]);
+    });
+
+    it("returns full addresses with no static placeholder data", async () => {
+      process.env.TREASURY_CONTRACT_ID = "CTREASURY";
+      mockedQuery.mockResolvedValue({
+        rows: [
+          {
+            topic_2: "add_sig",
+            event_data: {
+              value: [
+                "GBVQBPV3TGCV7NZMHNMTV4DPSLULQ4G7XFO5AFYMM3LVHW6PXMCYTOM",
+                1,
+              ],
+            },
+          },
+        ],
+      });
+
+      const result = await service.getSigners();
+      expect(result).toHaveLength(1);
+      expect(result[0]).toBe(
+        "GBVQBPV3TGCV7NZMHNMTV4DPSLULQ4G7XFO5AFYMM3LVHW6PXMCYTOM",
+      );
+      // Ensure no truncated placeholders remain
+      expect(result[0]).not.toContain("...");
+    });
+
+    it("queries correct contract_id and event topics", async () => {
+      process.env.TREASURY_CONTRACT_ID = "CTREASURY";
+      mockedQuery.mockResolvedValue({ rows: [] });
+
+      await service.getSigners();
+
+      expect(mockedQuery).toHaveBeenCalledWith(
+        expect.stringContaining("topic_2 IN ('add_sig', 'rem_sig')"),
+        ["CTREASURY"],
+      );
     });
   });
 });
