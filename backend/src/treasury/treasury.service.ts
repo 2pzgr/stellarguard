@@ -37,10 +37,15 @@ export class TreasuryService {
     const cached = await this.cache.get<string>(cacheKey);
     if (cached) return cached;
 
-    // For now, return a placeholder balance
-    // In a real implementation, this would query the contract via RPC
-    // or read from the indexed database
-    const balance = "1000.0000000";
+    const result = await pool.query(
+      `SELECT COALESCE(SUM(CAST((event_data->>'amount') AS BIGINT)), 0) as total
+       FROM events
+       WHERE contract_id = $1 AND topic_1 = 'treasury' AND topic_2 = 'deposit'`,
+      [contractId],
+    );
+
+    const totalAmount = result.rows[0]?.total || 0;
+    const balance = (totalAmount / 10000000).toFixed(7);
     await this.cache.set(cacheKey, balance, 30);
     return balance;
   }

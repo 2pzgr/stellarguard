@@ -10,7 +10,10 @@ jest.mock("../config", () => ({
   },
 }));
 
-
+jest.mock("../cache/cache.service", () => ({
+  CacheService: jest.fn().mockImplementation(() => ({
+    get: jest.fn().mockResolvedValue(null),
+    set: jest.fn().mockResolvedValue(undefined),
   })),
 }));
 
@@ -67,10 +70,52 @@ describe("TreasuryService", () => {
       );
     });
 
-    it("returns the placeholder balance when configured", async () => {
+    it("returns 0 when no deposit events exist", async () => {
       process.env.TREASURY_CONTRACT_ID = "CTREASURY";
+      mockedQuery.mockResolvedValue({ rows: [{ total: 0 }] });
+
       const result = await service.getBalance();
-      expect(result).toBe("1000.0000000");
+      expect(result).toBe("0.0000000");
+      expect(mockedQuery).toHaveBeenCalledWith(
+        expect.stringContaining("SUM(CAST((event_data->>'amount')"),
+        ["CTREASURY"],
+      );
+    });
+
+    it("sums deposit amounts from indexed events", async () => {
+      process.env.TREASURY_CONTRACT_ID = "CTREASURY";
+      mockedQuery.mockResolvedValue({ rows: [{ total: 50000000 }] });
+
+      const result = await service.getBalance();
+      expect(result).toBe("5.0000000");
+    });
+
+    it("converts stroops to decimal format with 7 places", async () => {
+      process.env.TREASURY_CONTRACT_ID = "CTREASURY";
+      mockedQuery.mockResolvedValue({ rows: [{ total: 123456789 }] });
+
+      const result = await service.getBalance();
+      expect(result).toBe("12.3456789");
+    });
+
+    it("returns cached balance on subsequent calls", async () => {
+      process.env.TREASURY_CONTRACT_ID = "CTREASURY";
+
+      const mockCache = new CacheService();
+      const getSpy = jest.spyOn(mockCache, 'get').mockResolvedValue(null);
+      const setSpy = jest.spyOn(mockCache, 'set').mockResolvedValue(undefined);
+
+      service = new TreasuryService(mockCache);
+      mockedQuery.mockResolvedValue({ rows: [{ total: 10000000 }] });
+
+      const result1 = await service.getBalance();
+
+      getSpy.mockResolvedValueOnce("1.0000000");
+      const result2 = await service.getBalance();
+
+      expect(result1).toBe("1.0000000");
+      expect(result2).toBe("1.0000000");
+      expect(mockedQuery).toHaveBeenCalledTimes(1);
     });
   });
 
