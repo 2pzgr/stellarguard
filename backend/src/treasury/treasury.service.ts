@@ -78,7 +78,13 @@ export class TreasuryService {
   }
 
   async getTransactionById(id: string) {
-    const result = await pool.query("SELECT * FROM events WHERE id = $1", [id]);
+    const contractId = process.env.TREASURY_CONTRACT_ID;
+    if (!contractId) throw new Error("TREASURY_CONTRACT_ID not configured");
+
+    const result = await pool.query(
+      "SELECT * FROM events WHERE id = $1 AND contract_id = $2",
+      [id, contractId],
+    );
 
     if (result.rows.length === 0) return null;
     return TransactionSchema.parse(result.rows[0]);
