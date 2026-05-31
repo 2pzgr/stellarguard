@@ -7,7 +7,17 @@ jest.mock("../db", () => ({
 jest.mock("../config", () => ({
   config: {
     sorobanRpcUrl: "https://soroban-test.example.com",
+    contractIds: ["CTREASURY"],
   },
+  loadConfig: jest.fn(),
+  getContractIds: jest.fn().mockReturnValue(["CTREASURY"]),
+}));
+
+jest.mock("../cache/cache.service", () => ({
+  CacheService: jest.fn().mockImplementation(() => ({
+    get: jest.fn().mockResolvedValue(null),
+    set: jest.fn().mockResolvedValue(undefined),
+  })),
 }));
 
 jest.mock("@stellar/stellar-sdk", () => ({
@@ -23,6 +33,7 @@ import { INestApplication } from "@nestjs/common";
 import request from "supertest";
 import { TreasuryController } from "./treasury.controller";
 import { TreasuryService } from "./treasury.service";
+import { CacheService } from "../cache/cache.service";
 import { pool } from "../db";
 
 const mockedQuery = pool.query as jest.Mock;
@@ -51,7 +62,7 @@ describe("Treasury API (e2e)", () => {
     process.env = { ...ORIGINAL_ENV, TREASURY_CONTRACT_ID: "CTREASURY" };
     const moduleRef = await Test.createTestingModule({
       controllers: [TreasuryController],
-      providers: [TreasuryService],
+      providers: [TreasuryService, CacheService],
     }).compile();
 
     app = moduleRef.createNestApplication();

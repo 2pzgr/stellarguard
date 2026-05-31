@@ -10,6 +10,16 @@ jest.mock("../config", () => ({
   },
 }));
 
+const mockedCacheGet = jest.fn();
+const mockedCacheSet = jest.fn();
+
+jest.mock("../cache/cache.service", () => ({
+  CacheService: jest.fn().mockImplementation(() => ({
+    get: mockedCacheGet,
+    set: mockedCacheSet,
+  })),
+}));
+
 jest.mock("@stellar/stellar-sdk", () => ({
   SorobanRpc: {
     Server: jest.fn().mockImplementation(() => ({})),
@@ -19,6 +29,7 @@ jest.mock("@stellar/stellar-sdk", () => ({
 }));
 
 import { TreasuryService } from "./treasury.service";
+import { CacheService } from "../cache/cache.service";
 import { pool } from "../db";
 
 const mockedQuery = pool.query as jest.Mock;
@@ -47,7 +58,7 @@ describe("TreasuryService", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     process.env = { ...ORIGINAL_ENV };
-    service = new TreasuryService();
+    service = new TreasuryService(new CacheService());
   });
 
   afterAll(() => {

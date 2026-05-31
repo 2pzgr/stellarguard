@@ -1,3 +1,16 @@
+jest.mock("../config", () => ({
+  config: {
+    sorobanRpcUrl: "https://soroban-test.example.com",
+    contractIds: ["CTREASURY"],
+  },
+  loadConfig: jest.fn(),
+  getContractIds: jest.fn().mockReturnValue(["CTREASURY"]),
+}));
+
+jest.mock("../db", () => ({
+  pool: { query: jest.fn() },
+}));
+
 import { BadRequestException, NotFoundException } from "@nestjs/common";
 import { TreasuryController } from "./treasury.controller";
 import { TreasuryService } from "./treasury.service";

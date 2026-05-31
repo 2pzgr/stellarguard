@@ -1,5 +1,6 @@
 import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from "@nestjs/common";
 import { startListener, stopListener, setupSignalHandlers } from "./listener";
+import { config } from "./config";
 
 @Injectable()
 export class ListenerService implements OnModuleInit, OnModuleDestroy {
@@ -9,7 +10,13 @@ export class ListenerService implements OnModuleInit, OnModuleDestroy {
     setupSignalHandlers();
     this.logger.log("Starting event listener...");
     startListener().catch((err) => {
-      this.logger.error("Event listener failed:", err);
+      const rpcUrl = new URL(config.sorobanRpcUrl);
+      const redactedUrl = `${rpcUrl.protocol}//${rpcUrl.host}${rpcUrl.pathname}`;
+      const presentCount = config.contractIds.length;
+      this.logger.error(
+        `Listener failed: rpc=${redactedUrl} contract_ids=${presentCount} ` +
+          `next_action=restart error=${err instanceof Error ? err.message : err}`,
+      );
     });
   }
 
