@@ -84,12 +84,42 @@ export class TreasuryService {
     return TransactionSchema.parse(result.rows[0]);
   }
 
-  async getSigners() {
-    const cacheKey = "treasury:signers";
+  async getSigners(): Promise<string[]> {
+    const contractId = process.env.TREASURY_CONTRACT_ID;
+    if (!contractId) throw new Error("TREASURY_CONTRACT_ID not configured");
+
+    const cacheKey = `treasury:signers:${contractId}`;
     const cached = await this.cache.get<string[]>(cacheKey);
     if (cached) return cached;
 
-    const signers = ["GBVQBPV3...", "GDI67..."];
+    // Replay add_sig and rem_sig events in ledger order to derive current
+    // signer set from the indexed event log.
+    const result = await pool.query(
+      `SELECT topic_2, event_data
+       FROM events
+       WHERE contract_id = $1
+         AND topic_1 = 'treasury'
+         AND topic_2 IN ('add_sig', 'rem_sig')
+       ORDER BY ledger ASC, id ASC`,
+      [contractId],
+    );
+
+    const signerSet = new Set<string>();
+    for (const row of result.rows) {
+      const data = row.event_data as Record<string, unknown>;
+      // event_data is { value: [address, count] } for both add_sig and rem_sig
+      const valueArr = data.value;
+      if (!Array.isArray(valueArr) || typeof valueArr[0] !== "string") continue;
+      const address = valueArr[0] as string;
+
+      if (row.topic_2 === "add_sig") {
+        signerSet.add(address);
+      } else {
+        signerSet.delete(address);
+      }
+    }
+
+    const signers = Array.from(signerSet);
     await this.cache.set(cacheKey, signers, 300);
     return signers;
   }
