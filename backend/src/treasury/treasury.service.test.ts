@@ -10,6 +10,16 @@ jest.mock("../config", () => ({
   },
 }));
 
+jest.mock("../cache/cache.service", () => ({
+  CacheService: jest.fn().mockImplementation(() => ({
+    get: jest.fn(),
+    set: jest.fn(),
+    delete: jest.fn(),
+    invalidatePattern: jest.fn(),
+    flush: jest.fn(),
+  })),
+}));
+
 jest.mock("@stellar/stellar-sdk", () => ({
   SorobanRpc: {
     Server: jest.fn().mockImplementation(() => ({})),
@@ -19,6 +29,7 @@ jest.mock("@stellar/stellar-sdk", () => ({
 }));
 
 import { TreasuryService } from "./treasury.service";
+import { CacheService } from "../cache/cache.service";
 import { pool } from "../db";
 
 const mockedQuery = pool.query as jest.Mock;
@@ -47,7 +58,7 @@ describe("TreasuryService", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     process.env = { ...ORIGINAL_ENV };
-    service = new TreasuryService();
+    service = new TreasuryService(new CacheService());
   });
 
   afterAll(() => {
@@ -145,24 +156,50 @@ describe("TreasuryService", () => {
   });
 
   describe("getTransactionById", () => {
+    it("throws when TREASURY_CONTRACT_ID is not configured", async () => {
+      delete process.env.TREASURY_CONTRACT_ID;
+      await expect(service.getTransactionById("42")).rejects.toThrow(
+        "TREASURY_CONTRACT_ID not configured",
+      );
+    });
+
     it("returns null when no row is found", async () => {
+      process.env.TREASURY_CONTRACT_ID = "CTREASURY";
       mockedQuery.mockResolvedValue({ rows: [] });
       const result = await service.getTransactionById("999");
       expect(result).toBeNull();
     });
 
     it("returns the parsed transaction when found", async () => {
-      mockedQuery.mockResolvedValue({ rows: [buildEventRow({ id: 42 })] });
+      process.env.TREASURY_CONTRACT_ID = "CTREASURY";
+      mockedQuery.mockResolvedValue({
+        rows: [buildEventRow({ id: 42, contract_id: "CTREASURY" })],
+      });
       const result = await service.getTransactionById("42");
       expect(result?.id).toBe(42);
+      expect(result?.contract_id).toBe("CTREASURY");
     });
 
-    it("queries by id parameter", async () => {
+    it("queries by id and contract_id parameters", async () => {
+      process.env.TREASURY_CONTRACT_ID = "CTREASURY";
       mockedQuery.mockResolvedValue({ rows: [] });
       await service.getTransactionById("17");
       expect(mockedQuery).toHaveBeenCalledWith(
-        "SELECT * FROM events WHERE id = $1",
-        ["17"],
+        "SELECT * FROM events WHERE id = $1 AND contract_id = $2",
+        ["17", "CTREASURY"],
+      );
+    });
+
+    it("cannot return a transaction from a different contract (SQL scoping)", async () => {
+      process.env.TREASURY_CONTRACT_ID = "CTREASURY";
+      // Even if a row exists with the same id under a different contract,
+      // the SQL WHERE clause ensures it is not returned.
+      mockedQuery.mockResolvedValue({ rows: [] });
+      const result = await service.getTransactionById("42");
+      expect(result).toBeNull();
+      expect(mockedQuery).toHaveBeenCalledWith(
+        "SELECT * FROM events WHERE id = $1 AND contract_id = $2",
+        ["42", "CTREASURY"],
       );
     });
   });
