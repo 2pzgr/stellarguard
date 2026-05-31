@@ -18,7 +18,7 @@ import {
 import { signTransaction } from "@stellar/freighter-api";
 import type { GovernanceProposalAction } from "./contractData";
 import type { Decoder } from "./sorobanClient";
-import { readPublicEnv, requirePublicEnv } from "./env";
+import { readPublicEnv } from "./env";
 import { throwIfAborted } from "./requestGuard";
 import { NETWORK_PASSPHRASE, TX_TIMEOUT } from "./network";
 import { sorobanClient } from "./sorobanClient";
@@ -27,11 +27,27 @@ import { sorobanClient } from "./sorobanClient";
 // Contract IDs
 // ============================================================================
 
+function getContractId(name: string, mockFallback: string): string {
+  const value = readPublicEnv(name);
+
+  if (value) {
+    return value;
+  }
+
+  if (process.env.NEXT_PUBLIC_USE_MOCK_TREASURY === "1") {
+    return mockFallback;
+  }
+
+  throw new Error(
+    `Missing required frontend environment variable: ${name}. Add it to frontend/.env.local before starting the app.`,
+  );
+}
+
 export const CONTRACT_IDS = {
-  treasury: requirePublicEnv("NEXT_PUBLIC_TREASURY_CONTRACT_ID"),
-  governance: requirePublicEnv("NEXT_PUBLIC_GOVERNANCE_CONTRACT_ID"),
-  tokenVault: requirePublicEnv("NEXT_PUBLIC_VAULT_CONTRACT_ID"),
-  accessControl: requirePublicEnv("NEXT_PUBLIC_ACL_CONTRACT_ID"),
+  treasury: getContractId("NEXT_PUBLIC_TREASURY_CONTRACT_ID", "mock-treasury-contract"),
+  governance: getContractId("NEXT_PUBLIC_GOVERNANCE_CONTRACT_ID", "mock-governance-contract"),
+  tokenVault: getContractId("NEXT_PUBLIC_VAULT_CONTRACT_ID", "mock-vault-contract"),
+  accessControl: getContractId("NEXT_PUBLIC_ACL_CONTRACT_ID", "mock-acl-contract"),
 } as const;
 
 const READONLY_SIMULATION_ACCOUNT_ENV =

@@ -1,4 +1,19 @@
 import { defineConfig, devices } from "@playwright/test";
+import fs from "node:fs";
+
+const systemBrowserChannel =
+  process.platform === "win32" && fs.existsSync("C:/Program Files/Google/Chrome/Application/chrome.exe")
+    ? "chrome"
+    : process.platform === "win32" &&
+        fs.existsSync("C:/Program Files (x86)/Google/Chrome/Application/chrome.exe")
+      ? "chrome"
+      : process.platform === "win32" &&
+          fs.existsSync("C:/Program Files/Microsoft/Edge/Application/msedge.exe")
+        ? "msedge"
+        : process.platform === "win32" &&
+            fs.existsSync("C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe")
+          ? "msedge"
+          : undefined;
 
 export default defineConfig({
   testDir: "./e2e",
@@ -11,26 +26,18 @@ export default defineConfig({
     trace: "on-first-retry",
   },
   webServer: {
-    command: "NEXT_DISABLE_VERSION_CHECK=1 CI=1 npm run dev -- -p 3005",
+    command: "node ./scripts/start-playwright-server.mjs",
     url: "http://127.0.0.1:3005",
     reuseExistingServer: !process.env.CI,
     cwd: __dirname,
-    env: {
-      NEXT_PUBLIC_USE_MOCK_TREASURY: "1",
-      NEXT_DISABLE_VERSION_CHECK: "1",
-      CI: "1",
-      NEXT_PUBLIC_TREASURY_CONTRACT_ID: "mock-treasury-contract",
-      NEXT_PUBLIC_GOVERNANCE_CONTRACT_ID: "mock-governance-contract",
-      NEXT_PUBLIC_VAULT_CONTRACT_ID: "mock-vault-contract",
-      NEXT_PUBLIC_ACL_CONTRACT_ID: "mock-acl-contract",
-      NEXT_PUBLIC_SOROBAN_SIMULATION_ACCOUNT:
-        "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF",
-    },
   },
   projects: [
     {
       name: "chromium",
-      use: { ...devices["Desktop Chrome"] },
+      use: {
+        ...devices["Desktop Chrome"],
+        ...(systemBrowserChannel ? { channel: systemBrowserChannel } : {}),
+      },
     },
   ],
 });
