@@ -198,11 +198,13 @@ export default function GovernancePage() {
         )}
       </div>
 
-      <div className="card flex flex-col md:flex-row gap-4 md:items-end">
-        <div>
-          <label className="block text-xs text-gray-400 mb-1">Status</label>
+      <div className="card grid grid-cols-1 gap-4 md:grid-cols-[repeat(3,minmax(0,11rem))_minmax(0,1fr)] md:items-end">
+        <div className="w-full">
+          <label className="mb-1 block whitespace-nowrap text-xs text-gray-400">
+            Status
+          </label>
           <select
-            className="bg-gray-900 border border-stellar-border rounded px-3 py-2 text-sm text-white"
+            className="w-full rounded-lg border border-stellar-border bg-gray-900 px-3 py-2.5 text-sm text-white outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20"
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
           >
@@ -211,10 +213,12 @@ export default function GovernancePage() {
             ))}
           </select>
         </div>
-        <div>
-          <label className="block text-xs text-gray-400 mb-1">Action</label>
+        <div className="w-full">
+          <label className="mb-1 block whitespace-nowrap text-xs text-gray-400">
+            Action
+          </label>
           <select
-            className="bg-gray-900 border border-stellar-border rounded px-3 py-2 text-sm text-white"
+            className="w-full rounded-lg border border-stellar-border bg-gray-900 px-3 py-2.5 text-sm text-white outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20"
             value={actionFilter}
             onChange={(e) => setActionFilter(e.target.value as typeof actionFilter)}
           >
@@ -223,10 +227,12 @@ export default function GovernancePage() {
             ))}
           </select>
         </div>
-        <div>
-          <label className="block text-xs text-gray-400 mb-1">Sort By</label>
+        <div className="w-full">
+          <label className="mb-1 block whitespace-nowrap text-xs text-gray-400">
+            Sort By
+          </label>
           <select
-            className="bg-gray-900 border border-stellar-border rounded px-3 py-2 text-sm text-white"
+            className="w-full rounded-lg border border-stellar-border bg-gray-900 px-3 py-2.5 text-sm text-white outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20"
             value={sortKey}
             onChange={(e) => setSortKey(e.target.value as SortKey)}
           >
@@ -235,7 +241,11 @@ export default function GovernancePage() {
             ))}
           </select>
         </div>
-        {error ? <p className="text-red-400 text-sm">{typeof error === "string" ? error : error.message}</p> : null}
+        {error ? (
+          <p className="text-sm text-red-400 md:col-span-4">
+            {typeof error === "string" ? error : error.message}
+          </p>
+        ) : null}
       </div>
 
       <div>
