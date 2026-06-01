@@ -88,10 +88,12 @@ describe("Treasury API (e2e)", () => {
   });
 
   it("serves balance from the configured treasury service", async () => {
+    mockedQuery.mockResolvedValue({ rows: [{ total: 100000000 }] });
+
     await request(app.getHttpServer())
       .get("/api/treasury/balance")
       .expect(200)
-      .expect({ balance: "1000.0000000" });
+      .expect({ balance: "10.0000000" });
   });
 
   it("serves transactions from the mocked test database", async () => {
