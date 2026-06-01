@@ -71,38 +71,34 @@ export class GovernanceService {
       throw new Error("GOVERNANCE_CONTRACT_ID not configured");
     }
 
-    let query = "SELECT * FROM events WHERE contract_id = $1";
+    const whereClauses: string[] = [];
     const params: unknown[] = [contractId];
     let paramIndex = 2;
 
-    query += " AND topic_2 = $" + paramIndex++;
-    params.push("propose");
-
-    if (status && VALID_PROPOSAL_STATUSES.has(status)) {
-      query += " AND event_data->>'status' = $" + paramIndex++;
-      params.push(status);
-    }
-
-    if (action && VALID_PROPOSAL_ACTIONS.has(action)) {
-      query += " AND event_data->>'action' = $" + paramIndex++;
+=
       params.push(action);
     }
 
-    query +=
-      " ORDER BY created_at DESC LIMIT $" +
-      paramIndex++ +
-      " OFFSET $" +
-      paramIndex;
-    params.push(limit, offset);
+    const whereSQL = whereClauses.join(" AND ");
 
-    const result = await pool.query(query, params);
+    const countResult = await pool.query(
+      `SELECT COUNT(*) FROM events WHERE ${whereSQL}`,
+      params,
+    );
+    const total = parseInt(countResult.rows[0].count, 10);
+
+    const dataParams = [...params, limit, offset];
+    const dataResult = await pool.query(
+      `SELECT * FROM events WHERE ${whereSQL} ORDER BY created_at DESC LIMIT $${paramIndex++} OFFSET $${paramIndex}`,
+      dataParams,
+    );
 
     return {
-      data: result.rows.map((row) => ProposalSchema.parse(row)),
+      data: dataResult.rows.map((row) => ProposalSchema.parse(row)),
       pagination: {
         page,
         limit,
-        total: result.rowCount || 0,
+        total,
       },
     };
   }
@@ -194,14 +190,28 @@ export class GovernanceService {
     const cached = await this.cache.get<GovernanceConfig>(cacheKey);
     if (cached) return cached;
 
-    // In a real implementation, this would query the contract
-    const configData = {
-      admin: "GADMIN...",
-      member_count: 3,
-      quorum_percent: 50,
-      voting_period: 1000,
-      proposal_count: 10,
+    const result = await pool.query(
+      `SELECT event_data FROM events
+       WHERE contract_id = $1 AND topic_1 = $2 AND topic_2 = $3
+       ORDER BY ledger DESC, id DESC
+       LIMIT 1`,
+      [contractId, "gov", "init"],
+    );
+
+    if (result.rows.length === 0) {
+      throw new Error("Governance config not found - no init event indexed");
+    }
+
+    const data = result.rows[0].event_data as Record<string, unknown>;
+
+    const configData: GovernanceConfig = {
+      admin: (data.admin as string) || "",
+      member_count: (data.member_count as number) || 0,
+      quorum_percent: (data.quorum_percent as number) || 0,
+      voting_period: (data.voting_period as number) || 0,
+      proposal_count: (data.proposal_count as number) || 0,
     };
+
     await this.cache.set(cacheKey, configData, 60);
     return configData;
   }

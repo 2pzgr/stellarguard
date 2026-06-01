@@ -136,6 +136,12 @@ export function parseRawEvent(rawEvent: {
     ...(eventName ? { _eventName: eventName } : {}),
   };
 
+  const enrichedData = {
+    ...data,
+    ...(eventName ? { _eventName: eventName } : {}),
+    _topics: allTopics,
+  };
+
   return {
     contractId: rawEvent.contractId,
     topic1,

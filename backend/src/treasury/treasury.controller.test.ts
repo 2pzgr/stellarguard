@@ -1,14 +1,6 @@
 jest.mock("../config", () => ({
   config: {
-    sorobanRpcUrl: "https://soroban-test.example.com",
-    contractIds: ["CTREASURY"],
-  },
-  loadConfig: jest.fn(),
-  getContractIds: jest.fn().mockReturnValue(["CTREASURY"]),
-}));
 
-jest.mock("../db", () => ({
-  pool: { query: jest.fn() },
 }));
 
 import { BadRequestException, NotFoundException } from "@nestjs/common";
@@ -68,7 +60,7 @@ describe("TreasuryController", () => {
   });
 
   it("passes normalized pagination to the service", async () => {
-    service.getTransactions.mockResolvedValue([]);
+    service.getTransactions.mockResolvedValue({ data: [], pagination: { page: 2, limit: 25, total: 0 } });
 
     await controller.getTransactions("2", "25");
 
