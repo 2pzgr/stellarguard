@@ -185,7 +185,7 @@ export function DataTable<T extends object>({
       )}
 
       {/* Table wrapper */}
-      <div className="card overflow-x-auto p-0 rounded-2xl">
+      <div className="card overflow-x-auto p-0">
         <table
           className="w-full text-sm"
           aria-labelledby={caption ? captionId : undefined}

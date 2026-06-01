@@ -21,11 +21,11 @@ export function RouteSkeleton({ title, description }: RouteSkeletonProps) {
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <div className="card space-y-4">
           <div className="h-5 w-32 rounded-lg bg-white/10" />
-          <div className="h-20 rounded-2xl bg-white/5" />
+          <div className="h-20 rounded-xl bg-white/5" />
         </div>
         <div className="card space-y-4">
           <div className="h-5 w-32 rounded-lg bg-white/10" />
-          <div className="h-20 rounded-2xl bg-white/5" />
+          <div className="h-20 rounded-xl bg-white/5" />
         </div>
       </div>
 
