@@ -28,6 +28,13 @@ const ACTIONS: GovernanceProposalAction[] = [
   "General",
 ];
 
+interface FieldErrors {
+  title?: string;
+  description?: string;
+  target?: string;
+  amount?: string;
+}
+
 export function CreateProposalModal({
   isOpen,
   isCreating = false,
@@ -43,7 +50,9 @@ export function CreateProposalModal({
   const [action, setAction] = useState<GovernanceProposalAction>("General");
   const [target, setTarget] = useState("");
   const [amount, setAmount] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
   const normalizedTarget = target.trim();
   const isTargetAddressValid = isValidStellarAddress(normalizedTarget);
 
@@ -62,42 +71,95 @@ export function CreateProposalModal({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [isOpen, isCreating, onClose]);
 
+  const validateTitle = (value: string): string | undefined => {
+    if (!value.trim()) {
+      return "Proposal title is required";
+    }
+    return undefined;
+  };
+
+  const validateDescription = (value: string): string | undefined => {
+    if (!value.trim()) {
+      return "Proposal description is required";
+    }
+    return undefined;
+  };
+
+  const validateTarget = (value: string, actionType: GovernanceProposalAction): string | undefined => {
+    if (actionType !== "Funding" && actionType !== "AddMember" && actionType !== "RemoveMember") {
+      return undefined;
+    }
+
+    if (!value.trim()) {
+      return `Target address is required for ${actionType} proposals`;
+    }
+
+    if (!isValidStellarAddress(value.trim())) {
+      return "Enter a valid Stellar account or contract address";
+    }
+
+    return undefined;
+  };
+
+  const validateAmount = (value: string, actionType: GovernanceProposalAction): string | undefined => {
+    if (actionType !== "Funding") {
+      return undefined;
+    }
+
+    if (!value || Number(value) <= 0) {
+      return "Amount must be greater than 0";
+    }
+
+    return undefined;
+  };
+
+  const handleFieldChange = (field: keyof FieldErrors, value: string, validator: (v: string) => string | undefined) => {
+    const error = validator(value);
+    setFieldErrors((prev) => ({
+      ...prev,
+      [field]: error,
+    }));
+  };
+
+  const handleFieldBlur = (field: string) => {
+    setTouched((prev) => ({
+      ...prev,
+      [field]: true,
+    }));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
+    setSubmitError(null);
+
+    // Mark all fields as touched for validation display
+    setTouched({
+      title: true,
+      description: true,
+      target: true,
+      amount: true,
+    });
 
     if (isWalletConnected === false) {
-      setError("Please connect your wallet first");
+      setSubmitError("Please connect your wallet first");
       return;
     }
 
-    if (!title.trim()) {
-      setError("Proposal title is required");
+    // Validate all fields
+    const titleError = validateTitle(title);
+    const descriptionError = validateDescription(description);
+    const targetError = validateTarget(target, action);
+    const amountError = validateAmount(amount, action);
+
+    const newErrors: FieldErrors = {};
+    if (titleError) newErrors.title = titleError;
+    if (descriptionError) newErrors.description = descriptionError;
+    if (targetError) newErrors.target = targetError;
+    if (amountError) newErrors.amount = amountError;
+
+    if (Object.keys(newErrors).length > 0) {
+      setFieldErrors(newErrors);
       return;
-    }
-
-    if (!description.trim()) {
-      setError("Proposal description is required");
-      return;
-    }
-
-    if (action === "Funding" || action === "AddMember" || action === "RemoveMember") {
-      if (!target.trim()) {
-        setError(`Target address is required for ${action} proposals`);
-        return;
-      }
-
-      if (!isTargetAddressValid) {
-        setError("Invalid Stellar address");
-        return;
-      }
-    }
-
-    if (action === "Funding") {
-      if (!amount || Number(amount) <= 0) {
-        setError("Amount must be greater than 0");
-        return;
-      }
     }
 
     try {
@@ -118,9 +180,11 @@ export function CreateProposalModal({
       setAction("General");
       setTarget("");
       setAmount("");
+      setFieldErrors({});
+      setTouched({});
       onClose();
     } catch (err: any) {
-      setError(err.message || "Failed to create proposal");
+      setSubmitError(err.message || "Failed to create proposal");
     }
   };
 
@@ -162,11 +226,22 @@ export function CreateProposalModal({
               type="text"
               placeholder="e.g., Increase Treasury Allocation"
               value={title}
-              onChange={(e) => setTitle(e.target.value)}
+              onChange={(e) => {
+                setTitle(e.target.value);
+                handleFieldChange("title", e.target.value, validateTitle);
+              }}
+              onBlur={() => handleFieldBlur("title")}
               disabled={isCreating}
               maxLength={TITLE_MAX}
-              className="w-full bg-gray-900 border border-stellar-border rounded px-3 py-2 text-sm text-white outline-none focus:border-primary-500 disabled:opacity-50"
+              aria-describedby={touched.title && fieldErrors.title ? "title-error" : undefined}
+              aria-invalid={touched.title && !!fieldErrors.title}
+              className={`w-full bg-gray-900 border rounded px-3 py-2 text-sm text-white outline-none focus:border-primary-500 disabled:opacity-50 transition-colors ${
+                touched.title && fieldErrors.title ? "border-red-500" : "border-stellar-border"
+              }`}
             />
+            {touched.title && fieldErrors.title && (
+              <p id="title-error" className="text-xs text-red-400 mt-1">{fieldErrors.title}</p>
+            )}
             <p className="text-xs text-gray-500 text-right mt-1">{title.length}/{TITLE_MAX}</p>
           </div>
 
@@ -178,12 +253,23 @@ export function CreateProposalModal({
               id="description"
               placeholder="Explain the purpose and details of this proposal"
               value={description}
-              onChange={(e) => setDescription(e.target.value)}
+              onChange={(e) => {
+                setDescription(e.target.value);
+                handleFieldChange("description", e.target.value, validateDescription);
+              }}
+              onBlur={() => handleFieldBlur("description")}
               disabled={isCreating}
               rows={3}
               maxLength={DESCRIPTION_MAX}
-              className="w-full bg-gray-900 border border-stellar-border rounded px-3 py-2 text-sm text-white outline-none focus:border-primary-500 disabled:opacity-50 resize-none"
+              aria-describedby={touched.description && fieldErrors.description ? "description-error" : undefined}
+              aria-invalid={touched.description && !!fieldErrors.description}
+              className={`w-full bg-gray-900 border rounded px-3 py-2 text-sm text-white outline-none focus:border-primary-500 disabled:opacity-50 resize-none transition-colors ${
+                touched.description && fieldErrors.description ? "border-red-500" : "border-stellar-border"
+              }`}
             />
+            {touched.description && fieldErrors.description && (
+              <p id="description-error" className="text-xs text-red-400 mt-1">{fieldErrors.description}</p>
+            )}
             <p className="text-xs text-gray-500 text-right mt-1">{description.length}/{DESCRIPTION_MAX}</p>
           </div>
 
@@ -221,12 +307,20 @@ export function CreateProposalModal({
                 type="text"
                 placeholder="G... or C..."
                 value={target}
-                onChange={(e) => setTarget(e.target.value)}
+                onChange={(e) => {
+                  setTarget(e.target.value);
+                  handleFieldChange("target", e.target.value, (v) => validateTarget(v, action));
+                }}
+                onBlur={() => handleFieldBlur("target")}
                 disabled={isCreating}
-                className="w-full bg-gray-900 border border-stellar-border rounded px-3 py-2 text-sm text-white outline-none focus:border-primary-500 disabled:opacity-50"
+                aria-describedby={touched.target && fieldErrors.target ? "target-error" : undefined}
+                aria-invalid={touched.target && !!fieldErrors.target}
+                className={`w-full bg-gray-900 border rounded px-3 py-2 text-sm text-white outline-none focus:border-primary-500 disabled:opacity-50 transition-colors ${
+                  touched.target && fieldErrors.target ? "border-red-500" : "border-stellar-border"
+                }`}
               />
-              {target && !isTargetAddressValid && (
-                <p className="text-xs text-red-400 mt-1">Enter a valid Stellar account or contract address</p>
+              {touched.target && fieldErrors.target && (
+                <p id="target-error" className="text-xs text-red-400 mt-1">{fieldErrors.target}</p>
               )}
             </div>
           )}
@@ -243,14 +337,26 @@ export function CreateProposalModal({
                 step="0.0000001"
                 min="0"
                 value={amount}
-                onChange={(e) => setAmount(sanitizeXlmInput(e.target.value))}
+                onChange={(e) => {
+                  const sanitized = sanitizeXlmInput(e.target.value);
+                  setAmount(sanitized);
+                  handleFieldChange("amount", sanitized, (v) => validateAmount(v, action));
+                }}
+                onBlur={() => handleFieldBlur("amount")}
                 disabled={isCreating}
-                className="w-full bg-gray-900 border border-stellar-border rounded px-3 py-2 text-sm text-white outline-none focus:border-primary-500 disabled:opacity-50"
+                aria-describedby={touched.amount && fieldErrors.amount ? "amount-error" : undefined}
+                aria-invalid={touched.amount && !!fieldErrors.amount}
+                className={`w-full bg-gray-900 border rounded px-3 py-2 text-sm text-white outline-none focus:border-primary-500 disabled:opacity-50 transition-colors ${
+                  touched.amount && fieldErrors.amount ? "border-red-500" : "border-stellar-border"
+                }`}
               />
+              {touched.amount && fieldErrors.amount && (
+                <p id="amount-error" className="text-xs text-red-400 mt-1">{fieldErrors.amount}</p>
+              )}
             </div>
           )}
 
-          {error && <p className="text-sm text-red-400">{error}</p>}
+          {submitError && <p className="text-sm text-red-400">{submitError}</p>}
 
           <div className="flex justify-end gap-3 pt-2">
             <button
