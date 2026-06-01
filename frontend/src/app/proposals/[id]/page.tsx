@@ -8,7 +8,9 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { VotingProgressBar } from "@/components/VotingProgressBar";
 import { useFreighter } from "@/hooks/useFreighter";
 import { useGovernance } from "@/hooks/useGovernance";
-import { formatAddress } from "@/lib/formatters";
+import { formatAddress, formatXlm } from "@/lib/formatters";
+import { CopyButton } from "@/components/CopyButton";
+import { ACTION_LABELS, ACTION_DESCRIPTIONS } from "@/lib/contractData";
 import type { GovernanceProposal } from "@/lib/contractData";
 
 export default function ProposalDetailPage({
@@ -86,7 +88,6 @@ export default function ProposalDetailPage({
     (proposal?.votesFor ?? 0) + (pendingVote === true ? 1 : 0);
   const displayedVotesAgainst =
     (proposal?.votesAgainst ?? 0) + (pendingVote === false ? 1 : 0);
-  const totalVotes = displayedVotesFor + displayedVotesAgainst;
   const votingClosed =
     proposal ? proposal.status !== "Active" || proposal.endsAt * 1000 <= nowMs : true;
   const effectiveHasVoted = viewerHasVoted || pendingVote !== undefined;
@@ -263,11 +264,46 @@ export default function ProposalDetailPage({
         <VotingProgressBar
           forVotes={displayedVotesFor}
           againstVotes={displayedVotesAgainst}
-          totalVotes={totalVotes}
           memberCount={memberCount}
           quorumPercent={quorumPercent}
         />
       </div>
+
+      {/* Action Details */}
+      {proposal && (
+        <div className="card">
+          <h2 className="text-lg font-semibold text-white mb-4">Action Details</h2>
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <span className="px-2 py-0.5 rounded-full text-xs font-medium border border-white/10 bg-white/5 text-gray-300">
+                {ACTION_LABELS[proposal.action]}
+              </span>
+            </div>
+            <p className="text-sm text-gray-400">
+              {ACTION_DESCRIPTIONS[proposal.action]}
+            </p>
+
+            {proposal.target && (
+              <div className="flex items-center gap-2 text-sm">
+                <span className="text-gray-500">Target:</span>
+                <span className="font-mono text-gray-300">
+                  {formatAddress(proposal.target, { startChars: 6, endChars: 6 })}
+                </span>
+                <CopyButton value={proposal.target} label="target address" />
+              </div>
+            )}
+
+            {proposal.action === "Funding" && proposal.amount > BigInt(0) && (
+              <div className="flex items-center gap-2 text-sm">
+                <span className="text-gray-500">Amount:</span>
+                <span className="font-mono text-gray-300">
+                  {formatXlm(proposal.amount)} XLM
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="card grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
