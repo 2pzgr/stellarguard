@@ -8,7 +8,6 @@ import {
 interface VotingProgressBarProps {
   forVotes: number;
   againstVotes: number;
-  totalVotes: number;
   memberCount: number;
   quorumPercent: number;
   className?: string;
@@ -17,11 +16,11 @@ interface VotingProgressBarProps {
 export function VotingProgressBar({
   forVotes,
   againstVotes,
-  totalVotes,
   memberCount,
   quorumPercent,
   className,
 }: VotingProgressBarProps) {
+  const totalVotes = forVotes + againstVotes;
   const forPercentage = totalVotes === 0 ? 0 : (forVotes / totalVotes) * 100;
   const againstPercentage = totalVotes === 0 ? 0 : (againstVotes / totalVotes) * 100;
   const quorumVotes = calculateQuorumVotes(memberCount, quorumPercent);
@@ -52,14 +51,20 @@ export function VotingProgressBar({
       </div>
 
       <div className="h-3 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800 relative flex">
-        <div
-          className="h-full bg-emerald-500 transition-all duration-500"
-          style={{ width: `${forPercentage}%` }}
-        />
-        <div
-          className="h-full bg-rose-500 transition-all duration-500"
-          style={{ width: `${againstPercentage}%` }}
-        />
+        {totalVotes === 0 ? (
+          <div className="h-full w-full rounded-full bg-slate-600/40" />
+        ) : (
+          <>
+            <div
+              className="h-full bg-emerald-500 transition-all duration-500"
+              style={{ width: `${forPercentage}%` }}
+            />
+            <div
+              className="h-full bg-rose-500 transition-all duration-500"
+              style={{ width: `${againstPercentage}%` }}
+            />
+          </>
+        )}
 
         <div
           className="absolute top-0 bottom-0 z-10 w-0.5 bg-slate-400 dark:bg-slate-500"

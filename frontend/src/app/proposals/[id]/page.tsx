@@ -86,7 +86,6 @@ export default function ProposalDetailPage({
     (proposal?.votesFor ?? 0) + (pendingVote === true ? 1 : 0);
   const displayedVotesAgainst =
     (proposal?.votesAgainst ?? 0) + (pendingVote === false ? 1 : 0);
-  const totalVotes = displayedVotesFor + displayedVotesAgainst;
   const votingClosed =
     proposal ? proposal.status !== "Active" || proposal.endsAt * 1000 <= nowMs : true;
   const effectiveHasVoted = viewerHasVoted || pendingVote !== undefined;
@@ -263,7 +262,6 @@ export default function ProposalDetailPage({
         <VotingProgressBar
           forVotes={displayedVotesFor}
           againstVotes={displayedVotesAgainst}
-          totalVotes={totalVotes}
           memberCount={memberCount}
           quorumPercent={quorumPercent}
         />
